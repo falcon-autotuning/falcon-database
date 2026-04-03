@@ -114,9 +114,8 @@ setup-nuget-auth:
 	@chmod +x .nuget-tools/nuget
 	@mkdir -p $$HOME/.nuget/NuGet
 	@API_KEY=$$(if [ -f .nuget_api_key ]; then cat .nuget_api_key; else echo $$NUGET_API_KEY; fi); \
-	echo '<?xml version="1.0" encoding="utf-8"?><configuration><packageSources><clear /><add key="github" value="$(NUGET_FEED)" /></packageSources><packageSourceCredentials><github><add key="Username" value="tjk144" /><add key="ClearTextPassword" value="'$$API_KEY'" /></github></packageSourceCredentials></configuration>' > $$HOME/.nuget/NuGet/NuGet.Config
-	@API_KEY=$$(if [ -f .nuget_api_key ]; then cat .nuget_api_key; else echo $$NUGET_API_KEY; fi); \
-		.nuget-tools/nuget setApiKey "$$API_KEY" -Source "$(NUGET_FEED)" -NonInteractive > /dev/null 2>&1
+		.nuget-tools/nuget sources remove -Name "github" || true; \
+		.nuget-tools/nuget sources add -Name "github" -Source "$(NUGET_FEED)" -Username "tjk144" -Password "$$API_KEY" -StorePasswordInClearText
 
 .PHONY: vcpkg-install-deps
 vcpkg-install-deps: setup-nuget-auth falcon-deps
@@ -124,7 +123,7 @@ vcpkg-install-deps: setup-nuget-auth falcon-deps
 	@VCPKG_ENV="CC=clang CXX=clang++"; \
 	if [ -f .nuget_api_key ] || [ -n "$$NUGET_API_KEY" ]; then \
 		API_KEY=$$(if [ -f .nuget_api_key ]; then cat .nuget_api_key; else echo $$NUGET_API_KEY; fi); \
-		VCPKG_ENV="NUGET_CONFIG=$$HOME/.nuget/NuGet/NuGet.Config VCPKG_BINARY_SOURCES='clear;nuget,$(NUGET_FEED),readwrite' VCPKG_NUGET_API_TOKEN=$$API_KEY $$VCPKG_ENV"; \
+		VCPKG_ENV="VCPKG_BINARY_SOURCES='clear;nuget,$(NUGET_FEED),readwrite' VCPKG_NUGET_API_TOKEN=$$API_KEY $$VCPKG_ENV"; \
 	fi; \
 	eval "$$VCPKG_ENV MAKELEVEL=0 $(VCPKG_ROOT)/vcpkg install --debug --triplet=$(VCPKG_TRIPLET) --x-manifest-root=$(CURDIR)/.falcon-deps --overlay-ports=$(CURDIR)/.falcon-deps/ports"
 
