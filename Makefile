@@ -133,7 +133,7 @@ vcpkg-install-deps: setup-nuget-auth falcon-deps
 		API_KEY=$$(if [ -f .nuget_api_key ]; then cat .nuget_api_key; else echo $$NUGET_API_KEY; fi); \
 		VCPKG_ENV="VCPKG_BINARY_SOURCES='clear;nuget,$(NUGET_FEED),readwrite' VCPKG_NUGET_API_TOKEN=$$API_KEY $$VCPKG_ENV"; \
 	fi; \
-	eval "$$VCPKG_ENV MAKELEVEL=0 $(VCPKG_ROOT)/vcpkg install --debug --triplet=$(VCPKG_TRIPLET) --x-manifest-root=$(CURDIR)/.falcon-deps --overlay-ports=$(CURDIR)/.falcon-deps/ports"
+	eval "$$VCPKG_ENV MAKELEVEL=0 $(VCPKG_ROOT)/vcpkg install --triplet=$(VCPKG_TRIPLET) --x-manifest-root=$(CURDIR)/.falcon-deps --overlay-ports=$(CURDIR)/.falcon-deps/ports"
 
 check-vcpkg: vcpkg-bootstrap  vcpkg-install-deps
 	@echo "Checking vcpkg configuration..."
