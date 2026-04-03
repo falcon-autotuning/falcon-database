@@ -1,12 +1,12 @@
-name: Test, Update SHA, and Upload NuGet
+name: Test, Compute SHA, and Release
 
 on:
-  pull_request:
-    branches:
-      - main
   push:
-    branches:
-      - main
+    branches: [main]
+    tags:
+      - "v*"
+  pull_request:
+    branches: [main]
 
 env:
   VCPKG_PORT_NAME: falcon-database
@@ -15,7 +15,7 @@ env:
   PORTFILE: ports/falcon-database/portfile.cmake
 
 jobs:
-  test-update-upload:
+  test-and-release:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout code
@@ -24,7 +24,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build cmake build-essential mono-complete docker-compose
+          sudo apt-get install -y ninja-build cmake build-essential mono-complete docker-compose jq
 
       - name: Run tests (with Docker)
         env:
@@ -42,20 +42,41 @@ jobs:
         id: sha
         run: |
           TAG="v${{ steps.getver.outputs.version }}"
-          curl -L -o falcon-database.tar.gz https://github.com/${{ github.repository }}/archive/refs/tags/$TAG.tar.gz
-          SHA=$(sha512sum falcon-database.tar.gz | awk '{print $1}')
-          echo "sha512=$SHA" >> $GITHUB_OUTPUT
+          curl -L -o falcon-database.tar.gz https://github.com/${{ github.repository }}/archive/refs/tags/$TAG.tar.gz || true
+          if [ -f falcon-database.tar.gz ]; then
+            SHA=$(sha512sum falcon-database.tar.gz | awk '{print $1}')
+            echo "sha512=$SHA" >> $GITHUB_OUTPUT
+          else
+            echo "sha512=" >> $GITHUB_OUTPUT
+          fi
 
-      - name: Update portfile.cmake with new version and SHA512
+      - name: Print SHA512 and manual update instructions
         run: |
-          sed -i "s/REF .*/REF v${{ steps.getver.outputs.version }}/" ${{ env.PORTFILE }}
-          sed -i "s/SHA512 .*/SHA512 ${{ steps.sha.outputs.sha512 }}/" ${{ env.PORTFILE }}
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git commit -am "Update portfile.cmake for v${{ steps.getver.outputs.version }} (SHA512)"
-          git push
+          echo "------------------------------------------------------------"
+          echo "Manual update required!"
+          echo "Update ports/falcon-database/portfile.cmake with:"
+          echo "  REF v${{ steps.getver.outputs.version }}"
+          echo "  SHA512 ${{ steps.sha.outputs.sha512 }}"
+          echo ""
+          echo "Example:"
+          echo "  sed -i 's/REF .*/REF v${{ steps.getver.outputs.version }}/' ports/falcon-database/portfile.cmake"
+          echo "  sed -i 's/SHA512 .*/SHA512 ${{ steps.sha.outputs.sha512 }}/' ports/falcon-database/portfile.cmake"
+          echo "Then commit and push the changes manually."
+          echo "------------------------------------------------------------"
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "Release ${{ github.ref_name }}"
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and upload vcpkg binary to NuGet
+        if: startsWith(github.ref, 'refs/tags/v')
         env:
           NUGET_FEED: ${{ secrets.NUGET_FEED_URL }}
           NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}

@@ -44,29 +44,37 @@ help:
 	@echo "============================="
 	@echo ""
 	@echo "Build targets:"
-	@echo "  make build-debug    - Build debug version"
-	@echo "  make build-release  - Build release version"
-	@echo "  make configure      - Configure both debug and release builds"
-	@echo "  make clean          - Clean build artifacts"
-	@echo "  make install        - Install the library"
+	@echo "  make build-debug         - Build debug version"
+	@echo "  make build-release       - Build release version"
+	@echo "  make configure           - Configure both debug and release builds"
+	@echo "  make clean               - Clean build artifacts"
+	@echo "  make install             - Install the library"
 	@echo ""
 	@echo "Test targets (require PostgreSQL):"
-	@echo "  make test           - Run tests (uses Docker by default)"
-	@echo "  make test-debug     - Run debug tests (uses Docker by default)"
-	@echo "  make test-local     - Run tests with local PostgreSQL"
-	@echo "  make test-verbose   - Run tests with verbose output"
+	@echo "  make test                - Run tests (uses Docker by default)"
+	@echo "  make test-debug          - Run debug tests (uses Docker by default)"
+	@echo "  make test-local          - Run tests with local PostgreSQL"
+	@echo "  make test-verbose        - Run tests with verbose output"
 	@echo ""
 	@echo "Docker targets:"
-	@echo "  make docker-up      - Start PostgreSQL test database"
-	@echo "  make docker-down    - Stop PostgreSQL test database"
-	@echo "  make docker-clean   - Clean PostgreSQL test data"
-	@echo "  make docker-logs    - Show PostgreSQL logs"
+	@echo "  make docker-up           - Start PostgreSQL test database"
+	@echo "  make docker-down         - Stop PostgreSQL test database"
+	@echo "  make docker-clean        - Clean PostgreSQL test data"
+	@echo "  make docker-logs         - Show PostgreSQL logs"
+	@echo ""
+	@echo "vcpkg/NuGet targets:"
+	@echo "  make vcpkg-bootstrap     - Clone and bootstrap vcpkg"
+	@echo "  make vcpkg-install-deps  - Install vcpkg dependencies (with NuGet cache if configured)"
+	@echo "  make vcpkg-release-nuget - Build and upload this port to NuGet (after tests pass)"
+	@echo "  make vcpkg-port-sha TAG=vX.Y.Z - Update portfile.cmake with SHA512 for a new release"
 	@echo ""
 	@echo "Environment variables:"
-	@echo "  VCPKG_ROOT          - Path to vcpkg root (default: ../.vcpkg)"
-	@echo "  VCPKG_TRIPLET       - vcpkg triplet (default: x64-linux-dynamic)"
-	@echo "  TEST_DATABASE_URL   - PostgreSQL connection for tests"
-	@echo "  USE_LOCAL_DB=1      - Force using local PostgreSQL instead of Docker"
+	@echo "  VCPKG_ROOT               - Path to vcpkg root (default: ./vcpkg)"
+	@echo "  VCPKG_TRIPLET            - vcpkg triplet (default: x64-linux-dynamic)"
+	@echo "  TEST_DATABASE_URL        - PostgreSQL connection for tests"
+	@echo "  USE_LOCAL_DB=1           - Force using local PostgreSQL instead of Docker"
+	@echo "  NUGET_API_KEY            - NuGet API key for binary cache (or .nuget_api_key file)"
+	@echo "  NUGET_FEED               - NuGet feed URL (default: $(NUGET_FEED))"
 	@echo ""
 	@echo "Current configuration:"
 	@echo "  Platform: $(PLATFORM)"
@@ -343,3 +351,17 @@ vcpkg-release-nuget: test
 	VCPKG_ENV="VCPKG_BINARY_SOURCES='clear;nuget,$(NUGET_FEED),write' VCPKG_NUGET_API_TOKEN=$$VCPKG_API_KEY $$VCPKG_ENV"; \
 	eval "$$VCPKG_ENV $(VCPKG_ROOT)/vcpkg install falcon-database --triplet=$(VCPKG_TRIPLET)"; \
 	$(VCPKG_ROOT)/vcpkg x-binarycache push --all --nuget-source="$(NUGET_FEED)" --nuget-api-key="$$VCPKG_API_KEY"
+
+.PHONY: vcpkg-port-sha
+vcpkg-port-sha:
+	@if [ -z "$(TAG)" ]; then \
+		echo "Usage: make vcpkg-port-sha TAG=v1.2.3"; \
+		exit 1; \
+	fi; \
+	echo "Creating source tarball (excluding .gitignore files)..."; \
+	git ls-files -z --exclude-standard | tar --null -T - -czf falcon-database-src.tar.gz; \
+	SHA=$$(sha512sum falcon-database-src.tar.gz | awk '{print $$1}'); \
+	echo "Updating ports/falcon-database/portfile.cmake with REF $(TAG) and SHA512 $$SHA..."; \
+	sed -i "s/REF .*/REF $(TAG)/" ports/falcon-database/portfile.cmake; \
+	sed -i "s/SHA512 .*/SHA512 $$SHA/" ports/falcon-database/portfile.cmake; \
+	echo "Done. Please commit and tag your release now."
