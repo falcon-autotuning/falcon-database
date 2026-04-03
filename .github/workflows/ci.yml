@@ -24,7 +24,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build cmake build-essential mono-complete
+          sudo apt-get install -y ninja-build cmake build-essential mono-complete docker-compose
 
       - name: Install vcpkg
         run: make vcpkg-bootstrap
