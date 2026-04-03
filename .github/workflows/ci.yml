@@ -24,7 +24,10 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build cmake build-essential mono-complete curl docker.io jq
+          sudo apt-get install -y ninja-build cmake build-essential mono-complete
+      - name: Install Docker (official)
+        run: |
+          curl -fsSL https://get.docker.com | sudo sh
 
       - name: Add user to docker group
         run: |
