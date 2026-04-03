@@ -96,8 +96,8 @@ vcpkg-bootstrap:
 	fi
 
 setup-nuget-auth:
-	@if [ ! -f .nuget_api_key ]; then \
-		echo "No .nuget_api_key found, skipping NuGet setup (local-only build, no binary cache)."; \
+	@if [ ! -f .nuget_api_key ] && [ -z "$$NUGET_API_KEY" ]; then \
+		echo "No .nuget_api_key or NUGET_API_KEY found, skipping NuGet setup (local-only build, no binary cache)."; \
 		exit 0; \
 	fi
 	@echo "Setting up NuGet authentication for vcpkg binary caching..."
@@ -113,15 +113,18 @@ setup-nuget-auth:
 	@printf '#!/bin/bash\nmono "$$(dirname "$$0")/nuget.exe" "$$@"\n' > .nuget-tools/nuget
 	@chmod +x .nuget-tools/nuget
 	@mkdir -p $$HOME/.nuget/NuGet
-	@echo '<?xml version="1.0" encoding="utf-8"?><configuration><packageSources><clear /><add key="github" value="$(NUGET_FEED)" /></packageSources><packageSourceCredentials><github><add key="Username" value="tjk144" /><add key="ClearTextPassword" value="'$$(cat .nuget_api_key)'" /></github></packageSourceCredentials></configuration>' > $$HOME/.nuget/NuGet/NuGet.Config
-	@.nuget-tools/nuget setApiKey "$$(cat .nuget_api_key)" -Source "$(NUGET_FEED)" -NonInteractive > /dev/null 2>&1
+	@API_KEY=$$(if [ -f .nuget_api_key ]; then cat .nuget_api_key; else echo $$NUGET_API_KEY; fi); \
+	echo '<?xml version="1.0" encoding="utf-8"?><configuration><packageSources><clear /><add key="github" value="$(NUGET_FEED)" /></packageSources><packageSourceCredentials><github><add key="Username" value="tjk144" /><add key="ClearTextPassword" value="'$$API_KEY'" /></github></packageSourceCredentials></configuration>' > $$HOME/.nuget/NuGet/NuGet.Config
+	@API_KEY=$$(if [ -f .nuget_api_key ]; then cat .nuget_api_key; else echo $$NUGET_API_KEY; fi); \
+		.nuget-tools/nuget setApiKey "$$API_KEY" -Source "$(NUGET_FEED)" -NonInteractive > /dev/null 2>&1
 
 .PHONY: vcpkg-install-deps
 vcpkg-install-deps: setup-nuget-auth falcon-deps
 	@echo "Installing vcpkg dependencies from .falcon-deps/vcpkg.json..."
 	@VCPKG_ENV="CC=clang CXX=clang++"; \
-	if [ -f .nuget_api_key ]; then \
-		VCPKG_ENV="VCPKG_BINARY_SOURCES='clear;nuget,$(NUGET_FEED),readwrite' VCPKG_NUGET_API_TOKEN=$$(cat .nuget_api_key) $$VCPKG_ENV"; \
+	if [ -f .nuget_api_key ] || [ -n "$$NUGET_API_KEY" ]; then \
+		API_KEY=$$(if [ -f .nuget_api_key ]; then cat .nuget_api_key; else echo $$NUGET_API_KEY; fi); \
+		VCPKG_ENV="VCPKG_BINARY_SOURCES='clear;nuget,$(NUGET_FEED),readwrite' VCPKG_NUGET_API_TOKEN=$$API_KEY $$VCPKG_ENV"; \
 	fi; \
 	eval "$$VCPKG_ENV MAKELEVEL=0 $(VCPKG_ROOT)/vcpkg install --triplet=$(VCPKG_TRIPLET) --x-manifest-root=$(CURDIR)/.falcon-deps --overlay-ports=$(CURDIR)/.falcon-deps/ports"
 
@@ -328,3 +331,16 @@ clangd-helpers:
 	else \
 		echo "No compile_commands.json found in debug build directory."; \
 	fi
+
+.PHONY: vcpkg-release-nuget
+vcpkg-release-nuget: test
+	@if [ ! -f .nuget_api_key ] && [ -z "$$NUGET_API_KEY" ]; then \
+		echo "No NuGet API key found (.nuget_api_key or NUGET_API_KEY env). Skipping NuGet upload."; \
+		exit 0; \
+	fi
+	@echo "Building and uploading falcon-database vcpkg port to NuGet..."
+	@VCPKG_ENV="VCPKG_OVERLAY_PORTS=$(CURDIR)/ports CC=clang CXX=clang++"; \
+	VCPKG_API_KEY=$$(if [ -f .nuget_api_key ]; then cat .nuget_api_key; else echo $$NUGET_API_KEY; fi); \
+	VCPKG_ENV="VCPKG_BINARY_SOURCES='clear;nuget,$(NUGET_FEED),write' VCPKG_NUGET_API_TOKEN=$$VCPKG_API_KEY $$VCPKG_ENV"; \
+	eval "$$VCPKG_ENV $(VCPKG_ROOT)/vcpkg install falcon-database --triplet=$(VCPKG_TRIPLET)"; \
+	$(VCPKG_ROOT)/vcpkg x-binarycache push --all --nuget-source="$(NUGET_FEED)" --nuget-api-key="$$VCPKG_API_KEY"
