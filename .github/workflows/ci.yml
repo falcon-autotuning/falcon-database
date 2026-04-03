@@ -1,0 +1,67 @@
+name: Test, Update SHA, and Upload NuGet
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+env:
+  VCPKG_PORT_NAME: falcon-database
+  VCPKG_PORT_PATH: ports/falcon-database
+  VCPKG_JSON: ports/falcon-database/vcpkg.json
+  PORTFILE: ports/falcon-database/portfile.cmake
+
+jobs:
+  test-update-upload:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build cmake build-essential mono-complete curl docker.io jq
+
+      - name: Add user to docker group
+        run: |
+          sudo usermod -aG docker $USER
+          newgrp docker
+
+      - name: Install vcpkg
+        run: make vcpkg-bootstrap
+
+      - name: Run tests (with Docker)
+        run: make test-docker
+
+      - name: Get version from vcpkg.json
+        id: getver
+        run: |
+          VERSION=$(jq -r .version ${{ env.VCPKG_JSON }})
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Download release tarball and compute SHA512
+        id: sha
+        run: |
+          TAG="v${{ steps.getver.outputs.version }}"
+          curl -L -o falcon-database.tar.gz https://github.com/${{ github.repository }}/archive/refs/tags/$TAG.tar.gz
+          SHA=$(sha512sum falcon-database.tar.gz | awk '{print $1}')
+          echo "sha512=$SHA" >> $GITHUB_OUTPUT
+
+      - name: Update portfile.cmake with new version and SHA512
+        run: |
+          sed -i "s/REF .*/REF v${{ steps.getver.outputs.version }}/" ${{ env.PORTFILE }}
+          sed -i "s/SHA512 .*/SHA512 ${{ steps.sha.outputs.sha512 }}/" ${{ env.PORTFILE }}
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git commit -am "Update portfile.cmake for v${{ steps.getver.outputs.version }} (SHA512)"
+          git push
+
+      - name: Build and upload vcpkg binary to NuGet
+        env:
+          NUGET_FEED: ${{ secrets.NUGET_FEED_URL }}
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: make vcpkg-release-nuget
