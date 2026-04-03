@@ -88,7 +88,7 @@ falcon-deps:
 vcpkg-bootstrap:
 	@if [ ! -d "$(VCPKG_ROOT)" ]; then \
 		echo "Cloning vcpkg..."; \
-		git clone https://github.com/microsoft/vcpkg.git $(VCPKG_ROOT) --depth 1; \
+		git clone https://github.com/microsoft/vcpkg.git $(VCPKG_ROOT); \
 	fi
 	@if [ ! -f "$(VCPKG_ROOT)/vcpkg" ]; then \
 		echo "Bootstrapping vcpkg..."; \
