@@ -64,17 +64,6 @@ jobs:
           echo "Then commit and push the changes manually."
           echo "------------------------------------------------------------"
 
-      - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: "Release ${{ github.ref_name }}"
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Build and upload vcpkg binary to NuGet
         if: startsWith(github.ref, 'refs/tags/v')
         env:
