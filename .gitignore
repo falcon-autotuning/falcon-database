@@ -1,0 +1,5 @@
+.nuget_api_key 
+.falcon-deps
+build/
+vcpkg/
+vcpkg_installed/
