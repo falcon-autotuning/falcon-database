@@ -26,8 +26,8 @@ endif
 VCPKG_ROOT ?= $(CURDIR)/vcpkg
 VCPKG_TOOLCHAIN ?= $(VCPKG_ROOT)/scripts/buildsystems/vcpkg.cmake
 VCPKG_INSTALLED_DIR ?= $(CURDIR)/.falcon-deps/vcpkg_installed
-NUGET_FEED ?= https://nuget.pkg.github.com/falcon-autotuning/index.json
-VCPKG_BINARY_SOURCES ?= clear;nuget,$(NUGET_FEED),read
+NUGET_FEED ?= https://pkgs.dev.azure.com/falcon-autotuning/_packaging/falcon-autotuning/nuget/v3/index.json
+VCPKG_BINARY_SOURCES ?= clear;nuget,ADO,readwrite
 
 BUILD_DIR_DEBUG := build/debug
 BUILD_DIR_RELEASE := build/release
@@ -113,17 +113,12 @@ setup-nuget-auth:
 		echo "Error: mono is not installed. Please install mono (e.g., 'sudo pacman -S mono' on Arch, 'sudo apt install mono-complete' on Ubuntu)."; \
 		exit 1; \
 	fi
-	@mkdir -p .nuget-tools
-	@if [ ! -f .nuget-tools/nuget.exe ]; then \
-		echo "Downloading nuget.exe..."; \
-		curl -fsSL -o .nuget-tools/nuget.exe https://dist.nuget.org/win-x86-commandline/v7.3.0/nuget.exe; \
-	fi
-	@printf '#!/bin/bash\nmono "$$(dirname "$$0")/nuget.exe" "$$@"\n' > .nuget-tools/nuget
-	@chmod +x .nuget-tools/nuget
 	@mkdir -p $$HOME/.nuget/NuGet
 	@API_KEY=$$(if [ -f .nuget_api_key ]; then cat .nuget_api_key; else echo $$NUGET_API_KEY; fi); \
-		.nuget-tools/nuget sources remove -Name "github" || true; \
-		.nuget-tools/nuget sources add -Name "github" -Source "$(NUGET_FEED)" -Username "tjk144" -Password "$$API_KEY" -StorePasswordInClearText
+	echo '<?xml version="1.0" encoding="utf-8"?><configuration><packageSources><clear /><add key="ADO" value="$(NUGET_FEED)" /></packageSources><packageSourceCredentials><ADO><add key="Username" value="AzureDevOps" /><add key="ClearTextPassword" value="'"$$API_KEY"'" /></ADO></packageSourceCredentials></configuration>' > $$HOME/.nuget/NuGet/NuGet.Config; \
+	NUGET_EXE=$$(vcpkg fetch nuget | tail -n1); \
+	mono "$$NUGET_EXE" sources remove -Name "ADO" || true; \
+	mono "$$NUGET_EXE" sources add -Name "ADO" -Source "$(NUGET_FEED)" -Username "AzureDevOps" -Password "$$API_KEY"
 
 .PHONY: vcpkg-install-deps
 vcpkg-install-deps: setup-nuget-auth falcon-deps
@@ -131,7 +126,7 @@ vcpkg-install-deps: setup-nuget-auth falcon-deps
 	@VCPKG_ENV="CC=clang CXX=clang++"; \
 	if [ -f .nuget_api_key ] || [ -n "$$NUGET_API_KEY" ]; then \
 		API_KEY=$$(if [ -f .nuget_api_key ]; then cat .nuget_api_key; else echo $$NUGET_API_KEY; fi); \
-		VCPKG_ENV="VCPKG_BINARY_SOURCES='clear;nuget,$(NUGET_FEED),readwrite' VCPKG_NUGET_API_TOKEN=$$API_KEY $$VCPKG_ENV"; \
+		VCPKG_ENV="NUGET_CONFIG=$$HOME/.nuget/NuGet/NuGet.Config VCPKG_BINARY_SOURCES=$$VCPKG_BINARY_SOURCES VCPKG_NUGET_API_TOKEN=$$API_KEY $$VCPKG_ENV"; \
 	fi; \
 	eval "$$VCPKG_ENV MAKELEVEL=0 $(VCPKG_ROOT)/vcpkg install --triplet=$(VCPKG_TRIPLET) --x-manifest-root=$(CURDIR)/.falcon-deps --overlay-ports=$(CURDIR)/.falcon-deps/ports"
 
@@ -348,7 +343,7 @@ vcpkg-release-nuget: test
 	@echo "Building and uploading falcon-database vcpkg port to NuGet..."
 	@VCPKG_ENV="VCPKG_OVERLAY_PORTS=$(CURDIR)/ports CC=clang CXX=clang++"; \
 	VCPKG_API_KEY=$$(if [ -f .nuget_api_key ]; then cat .nuget_api_key; else echo $$NUGET_API_KEY; fi); \
-	VCPKG_ENV="VCPKG_BINARY_SOURCES='clear;nuget,$(NUGET_FEED),write' VCPKG_NUGET_API_TOKEN=$$VCPKG_API_KEY $$VCPKG_ENV"; \
+	VCPKG_ENV="VCPKG_BINARY_SOURCES=$$VCPKG_BINARY_SOURCES VCPKG_NUGET_API_TOKEN=$$VCPKG_API_KEY $$VCPKG_ENV"; \
 	eval "$$VCPKG_ENV $(VCPKG_ROOT)/vcpkg install falcon-database --triplet=$(VCPKG_TRIPLET)"; \
 	$(VCPKG_ROOT)/vcpkg x-binarycache push --all --nuget-source="$(NUGET_FEED)" --nuget-api-key="$$VCPKG_API_KEY"
 
