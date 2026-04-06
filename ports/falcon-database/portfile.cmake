@@ -2,7 +2,7 @@ vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO falcon-autotuning/falcon-database
     REF v1.0.0
-    SHA512 ddca452d44a3fe8ca425d0536d5257e180d8ff0953399e47e5e361f926bb6129ccfc8e458a1666e43ba9d31fe47a952f3ce49eec656a7d8cfe34fa811f19cd95
+    SHA512 5caf214eb6dbe751f76b71b0f6ea25d88c055bbcbef004676775b2f0eac1949f255fc03737336bfcb4715c3d4c2bef42798534c630619d10e94faf339b0f5e77
 )
 vcpkg_cmake_configure(
     SOURCE_PATH "${SOURCE_PATH}"
