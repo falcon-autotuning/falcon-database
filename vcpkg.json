@@ -1,0 +1,22 @@
+{
+  "name": "falcon-database",
+  "version": "1.0.0",
+  "description": "PostGreSQL binding for falcon DSL interaction to store global variables",
+  "homepage": "https://github.com/falcon-autotuning/falcon-database",
+  "license": "MPL-2.0",
+  "dependencies": [
+    {
+      "name": "libpqxx",
+      "version>=": "7.10.5"
+    },
+    {
+      "name": "nlohmann-json",
+      "version>=": "3.11.2"
+    },
+    {
+      "name": "gtest",
+      "version>=": "1.16.0"
+    }
+  ],
+  "builtin-baseline": "e5a1490e1409d175932ef6014519e9ae149ddb7c"
+}

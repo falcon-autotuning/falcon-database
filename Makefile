@@ -12,6 +12,8 @@ ifeq ($(UNAME_S),Linux)
     NPROC := $(shell nproc 2>/dev/null || echo 4)
     HAS_DOCKER := $(shell command -v docker-compose >/dev/null 2>&1 && echo yes || echo no)
     SUDO ?= sudo
+		export CC=clang
+		export CXX=clang++
 endif
 ifeq ($(OS),Windows_NT)
     PLATFORM := windows
@@ -25,7 +27,7 @@ endif
 # vcpkg and NuGet binary cache
 VCPKG_ROOT ?= $(CURDIR)/vcpkg
 VCPKG_TOOLCHAIN ?= $(VCPKG_ROOT)/scripts/buildsystems/vcpkg.cmake
-VCPKG_INSTALLED_DIR ?= $(CURDIR)/.falcon-deps/vcpkg_installed
+VCPKG_INSTALLED_DIR ?= $(CURDIR)/vcpkg_installed
 NUGET_FEED ?= https://pkgs.dev.azure.com/falcon-autotuning/_packaging/falcon-autotuning/nuget/v3/index.json
 VCPKG_BINARY_SOURCES ?= clear;nuget,ADO,readwrite
 
@@ -82,16 +84,6 @@ help:
 	@echo "  Triplet: $(VCPKG_TRIPLET)"
 	@echo "  Docker available: $(HAS_DOCKER)"
 
-.PHONY: falcon-deps
-falcon-deps:
-	@if [ ! -d .falcon-deps ]; then \
-		echo "Cloning falcon-deps..."; \
-		git clone https://github.com/falcon-autotuning/falcon-deps.git .falcon-deps; \
-	else \
-		echo "Updating falcon-deps..."; \
-		cd .falcon-deps && git pull; \
-	fi
-
 .PHONY: vcpkg-bootstrap
 vcpkg-bootstrap:
 	@if [ ! -d "$(VCPKG_ROOT)" ]; then \
@@ -121,14 +113,14 @@ setup-nuget-auth:
 	mono "$$NUGET_EXE" sources add -Name "ADO" -Source "$(NUGET_FEED)" -Username "AzureDevOps" -Password "$$API_KEY"
 
 .PHONY: vcpkg-install-deps
-vcpkg-install-deps: setup-nuget-auth falcon-deps
-	@echo "Installing vcpkg dependencies from .falcon-deps/vcpkg.json..."
+vcpkg-install-deps: setup-nuget-auth 
+	@echo "Installing vcpkg dependencies" 
 	@VCPKG_ENV="CC=clang CXX=clang++"; \
 	if [ -f .nuget_api_key ] || [ -n "$$NUGET_API_KEY" ]; then \
 		API_KEY=$$(if [ -f .nuget_api_key ]; then cat .nuget_api_key; else echo $$NUGET_API_KEY; fi); \
 		VCPKG_ENV="NUGET_CONFIG=$$HOME/.nuget/NuGet/NuGet.Config VCPKG_BINARY_SOURCES=$$VCPKG_BINARY_SOURCES VCPKG_NUGET_API_TOKEN=$$API_KEY $$VCPKG_ENV"; \
 	fi; \
-	eval "$$VCPKG_ENV MAKELEVEL=0 $(VCPKG_ROOT)/vcpkg install --triplet=$(VCPKG_TRIPLET) --x-manifest-root=$(CURDIR)/.falcon-deps --overlay-ports=$(CURDIR)/.falcon-deps/ports"
+	eval "$$VCPKG_ENV MAKELEVEL=0 $(VCPKG_ROOT)/vcpkg install --triplet=$(VCPKG_TRIPLET)"
 
 check-vcpkg: vcpkg-bootstrap  vcpkg-install-deps
 	@echo "Checking vcpkg configuration..."
@@ -155,7 +147,7 @@ check-docker:
 configure-debug: check-vcpkg
 	@echo "Configuring debug build..."
 	@mkdir -p $(BUILD_DIR_DEBUG)
-	cd $(BUILD_DIR_DEBUG) && cmake ../.. \
+	CC=clang CXX=clang++ cd $(BUILD_DIR_DEBUG) && cmake ../.. \
 		-DCMAKE_BUILD_TYPE=Debug \
 		-DCMAKE_TOOLCHAIN_FILE=$(VCPKG_TOOLCHAIN) \
 		-DVCPKG_INSTALLED_DIR=$(VCPKG_INSTALLED_DIR) \
@@ -313,7 +305,7 @@ uninstall:
 
 clean: uninstall
 	@echo "Cleaning build artifacts..."
-	rm -rf $(BUILD_DIR_DEBUG) $(BUILD_DIR_RELEASE) build/ compile_commands.json .falcon-deps/vcpkg_installed/
+	rm -rf $(BUILD_DIR_DEBUG) $(BUILD_DIR_RELEASE) build/ compile_commands.json ./vcpkg_installed/
 	@echo "✓ Clean complete"
 
 # Quick rebuild without reconfigure
@@ -334,29 +326,3 @@ clangd-helpers:
 		echo "No compile_commands.json found in debug build directory."; \
 	fi
 
-.PHONY: vcpkg-release-nuget
-vcpkg-release-nuget: test
-	@if [ ! -f .nuget_api_key ] && [ -z "$$NUGET_API_KEY" ]; then \
-		echo "No NuGet API key found (.nuget_api_key or NUGET_API_KEY env). Skipping NuGet upload."; \
-		exit 0; \
-	fi
-	@echo "Building and uploading falcon-database vcpkg port to NuGet..."
-	@VCPKG_ENV="VCPKG_OVERLAY_PORTS=$(CURDIR)/ports CC=clang CXX=clang++"; \
-	VCPKG_API_KEY=$$(if [ -f .nuget_api_key ]; then cat .nuget_api_key; else echo $$NUGET_API_KEY; fi); \
-	VCPKG_ENV="VCPKG_BINARY_SOURCES=$$VCPKG_BINARY_SOURCES VCPKG_NUGET_API_TOKEN=$$VCPKG_API_KEY $$VCPKG_ENV"; \
-	eval "$$VCPKG_ENV $(VCPKG_ROOT)/vcpkg install falcon-database --triplet=$(VCPKG_TRIPLET)"; \
-	$(VCPKG_ROOT)/vcpkg x-binarycache push --all --nuget-source="$(NUGET_FEED)" --nuget-api-key="$$VCPKG_API_KEY"
-
-.PHONY: vcpkg-port-sha
-vcpkg-port-sha:
-	@if [ -z "$(TAG)" ]; then \
-		echo "Usage: make vcpkg-port-sha TAG=v1.2.3"; \
-		exit 1; \
-	fi; \
-	echo "Creating source tarball (excluding .gitignore files)..."; \
-	git ls-files -z --exclude-standard | tar --null -T - -czf falcon-database-src.tar.gz; \
-	SHA=$$(sha512sum falcon-database-src.tar.gz | awk '{print $$1}'); \
-	echo "Updating ports/falcon-database/portfile.cmake with REF $(TAG) and SHA512 $$SHA..."; \
-	sed -i "s/REF .*/REF $(TAG)/" ports/falcon-database/portfile.cmake; \
-	sed -i "s/SHA512 .*/SHA512 $$SHA/" ports/falcon-database/portfile.cmake; \
-	echo "Done. Please commit and tag your release now."
