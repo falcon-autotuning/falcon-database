@@ -22,35 +22,10 @@ A modern C++ implementation of the Falcon device characteristics database using 
 ## Building
 
 ```bash
-# From the falcon repository root
-cd database
+make build-debug 
 
-# First time setup
-make deps
-
-# Set up test database
-export TEST_DATABASE_URL="postgresql://localhost/falcon_test"
-
-# Development workflow
-make dev              # Build debug + run tests
-
-# Release workflow
-make release          # Build release + run tests
-
-# Or step by step
+# or 
 make build-release
-make test
-
-# Clean rebuild
-make clean
-make build-release
-```
-
-Or run test executables directly:
-
-```bash
-./build/tests/falcon_db_unit_tests
-./build/tests/falcon_db_integration_tests
 ```
 
 ## Environment Variables
