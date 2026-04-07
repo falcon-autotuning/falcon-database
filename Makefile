@@ -145,7 +145,7 @@ check-docker:
 configure-debug: check-vcpkg
 	@echo "Configuring debug build..."
 	@mkdir -p $(BUILD_DIR_DEBUG)
-	CC=clang CXX=clang++ cd $(BUILD_DIR_DEBUG) && cmake ../.. \
+	cd $(BUILD_DIR_DEBUG) && cmake ../.. \
 		-DCMAKE_BUILD_TYPE=Debug \
 		-DCMAKE_TOOLCHAIN_FILE=$(VCPKG_TOOLCHAIN) \
 		-DVCPKG_INSTALLED_DIR=$(VCPKG_INSTALLED_DIR) \
