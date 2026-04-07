@@ -29,7 +29,7 @@ VCPKG_ROOT ?= $(CURDIR)/vcpkg
 VCPKG_TOOLCHAIN ?= $(VCPKG_ROOT)/scripts/buildsystems/vcpkg.cmake
 VCPKG_INSTALLED_DIR ?= $(CURDIR)/vcpkg_installed
 NUGET_FEED ?= https://pkgs.dev.azure.com/falcon-autotuning/_packaging/falcon-autotuning/nuget/v3/index.json
-VCPKG_BINARY_SOURCES ?= clear;nuget,ADO,readwrite
+VCPKG_BINARY_SOURCES ?= clear;nuget,$(NUGET_FEED),readwrite
 
 BUILD_DIR_DEBUG := build/debug
 BUILD_DIR_RELEASE := build/release
@@ -107,15 +107,14 @@ setup-nuget-auth:
 	fi
 	@mkdir -p $$HOME/.nuget/NuGet
 	@API_KEY=$$(if [ -f .nuget_api_key ]; then cat .nuget_api_key; else echo $$NUGET_API_KEY; fi); \
-	echo '<?xml version="1.0" encoding="utf-8"?><configuration><packageSources><clear /><add key="ADO" value="$(NUGET_FEED)" /></packageSources><packageSourceCredentials><ADO><add key="Username" value="AzureDevOps" /><add key="ClearTextPassword" value="'"$$API_KEY"'" /></ADO></packageSourceCredentials></configuration>' > $$HOME/.nuget/NuGet/NuGet.Config; \
 	NUGET_EXE=$$(vcpkg fetch nuget | tail -n1); \
-	mono "$$NUGET_EXE" sources remove -Name "ADO" || true; \
-	mono "$$NUGET_EXE" sources add -Name "ADO" -Source "$(NUGET_FEED)" -Username "AzureDevOps" -Password "$$API_KEY"
+	mono "$$NUGET_EXE" sources remove -Name "falcon-autotuning" || true; \
+	mono "$$NUGET_EXE" sources add -Name "falcon-autotuning" -Source "$(NUGET_FEED)" -Username "ADO" -Password "$$API_KEY"
 
 .PHONY: vcpkg-install-deps
 vcpkg-install-deps: setup-nuget-auth 
 	@echo "Installing vcpkg dependencies" 
-	@VCPKG_ENV="CC=clang CXX=clang++"; \
+	@VCPKG_ENV="CC=clang CXX=clang++ VCPKG_FEATURE_FLAGS=binarycaching"; \
 	if [ -f .nuget_api_key ] || [ -n "$$NUGET_API_KEY" ]; then \
 		API_KEY=$$(if [ -f .nuget_api_key ]; then cat .nuget_api_key; else echo $$NUGET_API_KEY; fi); \
 		VCPKG_ENV="NUGET_CONFIG=$$HOME/.nuget/NuGet/NuGet.Config VCPKG_BINARY_SOURCES=$$VCPKG_BINARY_SOURCES VCPKG_NUGET_API_TOKEN=$$API_KEY $$VCPKG_ENV"; \

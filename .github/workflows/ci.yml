@@ -30,4 +30,4 @@ jobs:
         env:
           NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
           NUGET_FEED: ${{ secrets.NUGET_FEED_URL }}
-        run: make test-with-docker
+        run: make test
