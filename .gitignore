@@ -3,6 +3,6 @@
 .nuget-tools/
 build/
 vcpkg/
-./vcpkg_installed/
+vcpkg_installed/
 compile_commands.json
 
