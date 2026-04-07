@@ -1,4 +1,4 @@
-name: Test, Compute SHA, and Release
+name: Test
 
 on:
   push:
@@ -7,12 +7,6 @@ on:
       - "v*"
   pull_request:
     branches: [main]
-
-env:
-  VCPKG_PORT_NAME: falcon-database
-  VCPKG_PORT_PATH: ports/falcon-database
-  VCPKG_JSON: ports/falcon-database/vcpkg.json
-  PORTFILE: ports/falcon-database/portfile.cmake
 
 jobs:
   test-and-release:
