@@ -114,12 +114,11 @@ setup-nuget-auth:
 .PHONY: vcpkg-install-deps
 vcpkg-install-deps: setup-nuget-auth 
 	@echo "Installing vcpkg dependencies" 
-	@VCPKG_ENV="CC=clang CXX=clang++ VCPKG_FEATURE_FLAGS=binarycaching"; \
-	if [ -f .nuget_api_key ] || [ -n "$$NUGET_API_KEY" ]; then \
-		API_KEY=$$(if [ -f .nuget_api_key ]; then cat .nuget_api_key; else echo $$NUGET_API_KEY; fi); \
-		VCPKG_ENV="NUGET_CONFIG=$$HOME/.nuget/NuGet/NuGet.Config VCPKG_BINARY_SOURCES=$$VCPKG_BINARY_SOURCES VCPKG_NUGET_API_TOKEN=$$API_KEY $$VCPKG_ENV"; \
-	fi; \
-	eval "$$VCPKG_ENV MAKELEVEL=0 $(VCPKG_ROOT)/vcpkg install --triplet=$(VCPKG_TRIPLET)"
+	@CC=clang CXX=clang++ VCPKG_FEATURE_FLAGS=binarycaching MAKELEVEL=0 \
+		$(VCPKG_ROOT)/vcpkg install \
+		--binarysource="clear;nuget,$(NUGET_FEED),readwrite" \
+		--triplet="$(VCPKG_TRIPLET)" \
+		--debug
 
 check-vcpkg: vcpkg-bootstrap  vcpkg-install-deps
 	@echo "Checking vcpkg configuration..."
