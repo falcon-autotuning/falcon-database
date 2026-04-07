@@ -1,6 +1,4 @@
 .nuget_api_key 
-.falcon-deps
-.nuget-tools/
 build/
 vcpkg/
 vcpkg_installed/
