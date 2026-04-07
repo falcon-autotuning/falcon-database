@@ -116,7 +116,7 @@ vcpkg-install-deps: setup-nuget-auth
 	@echo "Installing vcpkg dependencies" 
 	@CC=clang CXX=clang++ VCPKG_FEATURE_FLAGS=binarycaching MAKELEVEL=0 \
 		$(VCPKG_ROOT)/vcpkg install \
-		--binarysource="clear;nuget,$(NUGET_FEED),readwrite" \
+		--binarysource="$(VCPKG_BINARY_SOURCES)" \
 		--triplet="$(VCPKG_TRIPLET)" \
 		--debug
 
