@@ -120,7 +120,10 @@ if(ENABLE_PCH)
   )
 endif()
 
-# Installation
+# ── Install ───────────────────────────────────────────────────────────────────
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+
 install(TARGETS falcon-database falcon-db-cli
   EXPORT falcon-database-targets
   LIBRARY DESTINATION lib
@@ -130,8 +133,10 @@ install(TARGETS falcon-database falcon-db-cli
 )
 
 install(DIRECTORY include/falcon-database
-  DESTINATION include
-  FILES_MATCHING PATTERN "*.hpp"
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+  FILES_MATCHING
+    PATTERN "*.hpp"
+    PATTERN "*.h"
 )
 
 # Install the generated header (optional, if you want it available to users)
@@ -140,26 +145,24 @@ install(FILES
   DESTINATION include/falcon-database/internal
 )
 
-include(CMakePackageConfigHelpers)
 write_basic_package_version_file(
-  "${CMAKE_CURRENT_BINARY_DIR}/falcon-databaseConfigVersion.cmake"
+  "${CMAKE_CURRENT_BINARY_DIR}/falcon-database-config-version.cmake"
   VERSION ${PROJECT_VERSION}
   COMPATIBILITY AnyNewerVersion
 )
 
 install(EXPORT falcon-database-targets
-  FILE falcon-database-targets.cmake
+  FILE      falcon-database-targets.cmake
   NAMESPACE falcon::
-  DESTINATION lib/cmake/falcon-database
+  DESTINATION ${CMAKE_INSTALL_DATADIR}/falcon-database
 )
-
-configure_file(cmake/falcon-databaseConfig.cmake.in
-  "${CMAKE_CURRENT_BINARY_DIR}/falcon-databaseConfig.cmake"
-  @ONLY
+configure_package_config_file(
+  cmake/falcon-database-config.cmake.in
+  "${CMAKE_CURRENT_BINARY_DIR}/falcon-database-config.cmake"
+  INSTALL_DESTINATION ${CMAKE_INSTALL_DATADIR}/falcon-database
 )
-
 install(FILES
-  "${CMAKE_CURRENT_BINARY_DIR}/falcon-databaseConfig.cmake"
-  "${CMAKE_CURRENT_BINARY_DIR}/falcon-databaseConfigVersion.cmake"
-  DESTINATION lib/cmake/falcon-database
+  "${CMAKE_CURRENT_BINARY_DIR}/falcon-database-config.cmake"
+  "${CMAKE_CURRENT_BINARY_DIR}/falcon-database-config-version.cmake"
+  DESTINATION ${CMAKE_INSTALL_DATADIR}/falcon-database
 )
