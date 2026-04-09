@@ -132,8 +132,7 @@ vcpkg-install-deps: setup-nuget-auth
 	VCPKG_FEATURE_FLAGS=binarycaching MAKELEVEL=0 \
 		$(VCPKG_ROOT)/vcpkg install \
 		--binarysource=$(VCPKG_BINARY_SOURCES) \
-		--triplet="$(VCPKG_TRIPLET)" \
-		--debug
+		--triplet="$(VCPKG_TRIPLET)"
 
 check-vcpkg: vcpkg-bootstrap  vcpkg-install-deps
 	@echo "Checking vcpkg configuration..."
