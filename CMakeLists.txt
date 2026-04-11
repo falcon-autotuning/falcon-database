@@ -124,12 +124,16 @@ endif()
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
-install(TARGETS falcon-database falcon-db-cli
+install(TARGETS falcon-database
   EXPORT falcon-database-targets
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib
-  RUNTIME DESTINATION bin
   INCLUDES DESTINATION include
+)
+
+# Install CLI separately WITHOUT exporting it
+install(TARGETS falcon-db-cli
+  RUNTIME DESTINATION bin
 )
 
 install(DIRECTORY include/falcon-database
