@@ -1,37 +1,68 @@
-#include <cstdio>
-#include <cstdlib>
 #include <filesystem>
 #include <gtest/gtest.h>
 #include <iostream>
 #include <sstream>
 #include <string>
 #include <vector>
+#ifdef _WIN32
+#include <cstdio>
+#define popen _popen
+#define pclose _pclose
+#else
+#include <cstdio>
+#include <sys/wait.h>
+#endif
 
 class CLIProcessTest : public ::testing::Test {
 protected:
   // Helper to run CLI and capture output
   static int run_cli(const std::vector<std::string> &args, std::string &output,
                      std::string &error) {
-    // falcon_db_integration_tests resides in build/release/tests or
-    // build/debug/tests. the executable falcon-db-cli should be in
-    // build/release or build/debug.
-    std::string cli_path = "../falcon-db-cli";
+    // Determine the CLI executable path
+    // The test executable is in: build/release/tests/ or build/debug/tests/
+    // The CLI executable is in: build/release/ or build/debug/
+    // So we need to go up one directory: ../falcon-db-cli(.exe)
+
+    std::string cli_path = "..";
+    cli_path = (std::filesystem::path(cli_path) / "falcon-db-cli").string();
+
+#ifdef _WIN32
+    cli_path += ".exe";
+#endif
+
+    // Verify the path exists
     if (!std::filesystem::exists(cli_path)) {
-      std::cerr << "falcon-db-cli not found at " << cli_path << '\n';
-      // Attempt another common path if not found there
-      cli_path = "../../falcon-db-cli";
-      if (!std::filesystem::exists(cli_path)) {
-        std::cerr << "falcon-db-cli not found at " << cli_path << '\n';
+      // Try alternative: maybe it's in the same directory
+      std::string alt_path = "falcon-db-cli";
+#ifdef _WIN32
+      alt_path += ".exe";
+#endif
+      if (std::filesystem::exists(alt_path)) {
+        cli_path = alt_path;
+      } else {
+        std::cerr << "falcon-db-cli not found at " << cli_path << " or "
+                  << alt_path << '\n';
+        error = "falcon-db-cli not found";
         return 127;
       }
     }
 
     std::ostringstream cmd;
+#ifdef _WIN32
+    // On Windows, to use output redirection, run via cmd /C
+    cmd << "cmd /C \"" << cli_path;
+    for (const auto &arg : args) {
+      cmd << " " << arg;
+    }
+    cmd << " 2>&1\"";
+#else
     cmd << cli_path;
     for (const auto &arg : args) {
       cmd << " " << arg;
     }
     cmd << " 2>&1";
+#endif
+
     std::string command_str = cmd.str();
 
     FILE *pipe = popen(command_str.c_str(), "r");
@@ -47,7 +78,17 @@ protected:
     }
 
     int status = pclose(pipe);
-    return WEXITSTATUS(status);
+#ifdef _WIN32
+    // On Windows, pclose returns the exit code directly.
+    return status;
+#else
+    // On POSIX, check if process exited normally and return exit status.
+    if (WIFEXITED(status)) {
+      return WEXITSTATUS(status);
+    } else {
+      return 127; // Abnormal termination
+    }
+#endif
   }
 };
 

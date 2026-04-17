@@ -71,8 +71,8 @@ namespace falcon::database {
 
 ReadOnlyDatabaseConnection::ReadOnlyDatabaseConnection(
     const std::string &connection_string)
-    : conn_str_(resolve_connection_string(connection_string)),
-      connected_(false) {
+    : connected_(false),
+      conn_str_(resolve_connection_string(connection_string)) {
   // Don't connect yet - lazy initialization
 }
 

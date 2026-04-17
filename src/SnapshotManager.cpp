@@ -8,6 +8,8 @@ namespace falcon::database {
 SnapshotManager::SnapshotManager(std::shared_ptr<AdminDatabaseConnection> dconn)
     : db_(std::move(dconn)) {}
 
+SnapshotManager::~SnapshotManager() = default;
+
 void SnapshotManager::export_to_json(const std::string &filename) {
   try {
     // Get all characteristics from the database
@@ -39,10 +41,10 @@ void SnapshotManager::import_from_json(const std::string &filename,
     if (!file.is_open()) {
       throw std::runtime_error("Failed to open file for reading: " + filename);
     }
-    json json;
-    file >> json;
+    json j;
+    file >> j;
     file.close();
-    if (!json.is_array()) {
+    if (!j.is_array()) {
       throw std::runtime_error("Invalid snapshot format: expected array");
     }
 
@@ -51,7 +53,7 @@ void SnapshotManager::import_from_json(const std::string &filename,
     }
 
     size_t count = 0;
-    for (const auto &item : json) {
+    for (const auto &item : j) {
       auto dchar = DeviceCharacteristic::from_json(item);
       db_->insert(dchar);
       ++count;
@@ -76,14 +78,14 @@ bool SnapshotManager::validate_snapshot(const std::string &filename) {
     if (!file.is_open()) {
       return false;
     }
-    json json;
-    file >> json;
+    json j;
+    file >> j;
     file.close();
-    if (!json.is_array()) {
+    if (!j.is_array()) {
       return false;
     }
 
-    return std::all_of(json.begin(), json.end(), [](const auto &item) {
+    return std::all_of(j.begin(), j.end(), [](const auto &item) {
       return item.is_object() && item.contains("name") &&
              item.contains("scope") && item.contains("characteristic");
     });

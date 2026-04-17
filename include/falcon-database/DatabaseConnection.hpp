@@ -1,6 +1,7 @@
 #pragma once
 
 #include "DeviceCharacteristic.hpp"
+#include "falcon-database/export.h"
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -21,7 +22,7 @@ namespace falcon::database {
  * 2. FALCON_DATABASE_URL environment variable
  * 3. Throws error if neither is available
  */
-class ReadOnlyDatabaseConnection {
+class FALCON_DATABASE_API ReadOnlyDatabaseConnection {
 public:
   /**
    * @brief Construct with optional connection string
@@ -100,7 +101,8 @@ protected:
 /**
  * @brief Database connection with write operations
  */
-class ReadWriteDatabaseConnection : public ReadOnlyDatabaseConnection {
+class FALCON_DATABASE_API ReadWriteDatabaseConnection
+    : public ReadOnlyDatabaseConnection {
 public:
   explicit ReadWriteDatabaseConnection(
       const std::string &connection_string = "");
@@ -127,7 +129,8 @@ public:
 /**
  * @brief Database connection with administrative operations
  */
-class AdminDatabaseConnection : public ReadWriteDatabaseConnection {
+class FALCON_DATABASE_API AdminDatabaseConnection
+    : public ReadWriteDatabaseConnection {
 public:
   explicit AdminDatabaseConnection(const std::string &connection_string = "");
   ~AdminDatabaseConnection() override;

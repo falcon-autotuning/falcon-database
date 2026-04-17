@@ -1,6 +1,7 @@
 #pragma once
 
 #include "falcon-database/DatabaseConnection.hpp"
+#include "falcon-database/export.h"
 #include <string>
 
 namespace falcon::database {
@@ -9,9 +10,10 @@ namespace falcon::database {
  * @brief Manages JSON snapshots of the database for human-readable
  * backup/restore
  */
-class SnapshotManager {
+class FALCON_DATABASE_API SnapshotManager {
 public:
   explicit SnapshotManager(std::shared_ptr<AdminDatabaseConnection> dconn);
+  ~SnapshotManager();
 
   /**
    * @brief Export all device characteristics to a JSON file

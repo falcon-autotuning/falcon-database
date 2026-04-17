@@ -82,6 +82,7 @@ target_link_libraries(falcon-database
     libpqxx::pqxx
     nlohmann_json::nlohmann_json
 )
+target_compile_definitions(falcon-database PRIVATE falcon_database_EXPORTS)
 
 # Compiler warnings
 if(MSVC)
