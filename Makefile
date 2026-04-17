@@ -3,27 +3,49 @@
 
 .PHONY: all configure build-debug build-release test clean install help check-vcpkg
 
-# Detect OS
-UNAME_S := $(shell uname -s)
-ifeq ($(UNAME_S),Linux)
-    PLATFORM := linux
-    CMAKE_GENERATOR := Ninja
-    VCPKG_TRIPLET ?= x64-linux-dynamic
-    NPROC := $(shell nproc 2>/dev/null || echo 4)
-    HAS_DOCKER := $(shell command -v docker-compose >/dev/null 2>&1 && echo yes || echo no)
-    SUDO ?= sudo
-		export CC=clang
-		export CXX=clang++
-endif
-ifeq ($(OS),Windows_NT)
-    PLATFORM := windows
-    CMAKE_GENERATOR := "Visual Studio 17 2022"
-    VCPKG_TRIPLET ?= x64-windows
-    NPROC := 4
-    HAS_DOCKER := $(shell where docker-compose >nul 2>&1 && echo yes || echo no)
-    SUDO :=
+# Platform detection (works on Linux, MINGW/MSYS, and native Windows)
+UNAME_S := $(shell uname -s 2>/dev/null || echo Unknown)
+IS_MINGW := $(findstring MINGW,$(UNAME_S))
+IS_CYGWIN := $(findstring CYGWIN,$(UNAME_S))
+IS_WINDOWS_NT := $(filter Windows_NT,$(OS))
+ifeq ($(or $(IS_MINGW),$(IS_CYGWIN),$(IS_WINDOWS_NT)),)
+  PLATFORM := linux
+else
+  PLATFORM := windows
 endif
 
+# Default compilers (user can override from environment)
+ifeq ($(PLATFORM),windows)
+  # prefer clang-cl when available; user can pass CC/ CXX to override
+  CMAKE_GENERATOR := Ninja
+  VCPKG_TRIPLET := x64-win-llvm
+  VCPKG_DEBUG_BIN := $(PWD)/vcpkg_installed/x64-windows/bin
+  VCPKG_RELEASE_LIB := $(PWD)/vcpkg_installed/x64-windows/lib
+  EXE_SUFFIX := .exe
+	NPROC := $(shell powershell -Command "[Environment]::ProcessorCount" 2>NUL || echo 4)
+  STRIP_CMD := # no-op (strip not usually present); set to "llvm-strip" if you have it
+	RUN_PREFIX := PATH=$(VCPKG_DEBUG_BIN):$(VCPKG_RELEASE_LIB):$$PATH
+	SUDO ?= 
+  PYTHON_EXECUTABLE ?= python
+  # On Windows, Ninja + clang-cl: still pass CMAKE_C_COMPILER / CMAKE_CXX_COMPILER
+  export CC=clang-cl
+	export CXX=clang-cl
+else
+  CMAKE_GENERATOR := Ninja
+  VCPKG_TRIPLET := x64-linux-dynamic
+  VCPKG_DEBUG_LIB := $(PWD)/vcpkg_installed/x64-linux-dynamic/debug/lib
+  VCPKG_RELEASE_LIB := $(PWD)/vcpkg_installed/x64-linux-dynamic/lib
+  EXE_SUFFIX :=
+  NPROC := $(shell nproc 2>/dev/null || echo 4)
+  STRIP_CMD := strip
+	RUN_PREFIX := LD_LIBRARY_PATH=$(VCPKG_DEBUG_LIB):$(VCPKG_RELEASE_LIB):$$LD_LIBRARY_PATH
+	SUDO := sudo
+	PYTHON_EXECUTABLE ?= python3
+	export CC=clang
+	export CXX=clang++
+endif
+
+# Paths
 ENV_FILE := .nuget-credentials
 ifeq ($(wildcard $(ENV_FILE)),)
   $(info [Makefile] $(ENV_FILE) not found, skipping environment sourcing)
@@ -40,12 +62,20 @@ FEED_URL ?=
 NUGET_API_KEY ?=
 FEED_NAME ?= 
 USERNAME ?=
-VCPKG_BINARY_SOURCES ?= ""
+VCPKG_BINARY_SOURCES ?= 
 ifeq ($(strip $(FEED_URL)),)
   CMAKE_VCPKG_BINARY_SOURCES :=
 else
-	VCPKG_BINARY_SOURCES := "clear;nuget,$(FEED_URL),readwrite"
+	VCPKG_BINARY_SOURCES := "nuget,$(FEED_URL),readwrite"
   CMAKE_VCPKG_BINARY_SOURCES := -DVCPKG_BINARY_SOURCES=$(VCPKG_BINARY_SOURCES)
+endif
+LINKER_FLAGS ?=
+ifeq ($(PLATFORM),linux)
+	LINKER_FLAGS := -DCMAKE_EXE_LINKER_FLAGS="-fuse-ld=lld" -DCMAKE_SHARED_LINKER_FLAGS="-fuse-ld=lld"
+endif
+VCPKG_OVERLAY_TRIPS ?=
+ifeq ($(PLATFORM),windows)
+	VCPKG_OVERLAY_TRIPS := -DVCPKG_OVERLAY_TRIPLETS=../../my-vcpkg-triplets
 endif
 
 BUILD_DIR_DEBUG := build/debug
@@ -107,32 +137,49 @@ vcpkg-bootstrap:
 		echo "Cloning vcpkg..."; \
 		git clone https://github.com/microsoft/vcpkg.git $(VCPKG_ROOT); \
 	fi
-	@if [ ! -f "$(VCPKG_ROOT)/vcpkg" ]; then \
+	@if [ ! -f "$(VCPKG_ROOT)/vcpkg" ] && [ ! -f "$(VCPKG_ROOT)/vcpkg.exe" ]; then \
 		echo "Bootstrapping vcpkg..."; \
-		cd $(VCPKG_ROOT) && ./bootstrap-vcpkg.sh; \
+		UNAME="$$(uname -s 2>/dev/null || echo Unknown)"; \
+		if echo "$$UNAME" | grep -i -q 'mingw\|msys\|cygwin'; then \
+			echo "Detected Windows bash environment ($$UNAME). Using cmd.exe to launch bootstrap-vcpkg.bat"; \
+			BAT_PATH="$$(cygpath -w "$(VCPKG_ROOT)/bootstrap-vcpkg.bat")"; \
+			cmd.exe //C "$$BAT_PATH"; \
+			git clone https://github.com/Neumann-A/my-vcpkg-triplets.git || true; \
+		else \
+			echo "Detected Unix environment ($$UNAME). Using bootstrap-vcpkg.sh"; \
+			cd $(VCPKG_ROOT) && ./bootstrap-vcpkg.sh; \
+		fi \
 	fi
 
 setup-nuget-auth:
 	@if [ -z "$$NUGET_API_KEY" ]; then \
-		echo "No NUGET_API_KEY found, skipping NuGet setup (local-only build, no binary cache)."; \
+		echo "No .nuget_api_key or NUGET_API_KEY found, skipping NuGet setup (local-only build, no binary cache)."; \
 		exit 0; \
 	fi
 	@echo "Setting up NuGet authentication for vcpkg binary caching..."
-	@if ! command -v mono >/dev/null 2>&1; then \
-		echo "Error: mono is not installed. Please install mono (e.g., 'sudo pacman -S mono' on Arch, 'sudo apt install mono-complete' on Ubuntu)."; \
-		exit 1; \
+	@if [ "$$(uname -s 2>/dev/null)" != "Windows_NT" ] && [ "$$(uname -o 2>/dev/null)" != "Msys" ] && [ "$$(uname -o 2>/dev/null)" != "Cygwin" ]; then \
+		if ! command -v mono >/dev/null 2>&1; then \
+			echo "Error: mono is not installed. Please install mono (e.g., 'sudo pacman -S mono' on Arch, 'sudo apt install mono-complete' on Ubuntu)."; \
+			exit 1; \
+		fi; \
 	fi
 	@NUGET_EXE=$$(vcpkg fetch nuget | tail -n1); \
-	mono "$$NUGET_EXE" sources remove -Name "$(FEED_NAME)" || true; \
-	mono "$$NUGET_EXE" sources add -Name "$(FEED_NAME)" -Source "$(FEED_URL)" -Username "$(USERNAME)" -Password "$(NUGET_API_KEY)"
+	if [ "$$(uname -s 2>/dev/null)" = "Linux" ]; then \
+		MONO_PREFIX="mono "; \
+	else \
+		MONO_PREFIX=""; \
+	fi; \
+	$$MONO_PREFIX"$$NUGET_EXE" sources remove -Name "$(FEED_NAME)" || true; \
+	$$MONO_PREFIX"$$NUGET_EXE" sources add -Name "$(FEED_NAME)" -Source "$(FEED_URL)" -Username "$(USERNAME)" -Password "$(NUGET_API_KEY)";
 
 .PHONY: vcpkg-install-deps
 vcpkg-install-deps: setup-nuget-auth 
 	@echo "Installing vcpkg dependencies" 
-	VCPKG_FEATURE_FLAGS=binarycaching MAKELEVEL=0 \
+	VCPKG_FEATURE_FLAGS=binarycaching VCPKG_OVERLAY_TRIPLETS=my-vcpkg-triplets \
 		$(VCPKG_ROOT)/vcpkg install \
-		--binarysource=$(VCPKG_BINARY_SOURCES) \
-		--triplet="$(VCPKG_TRIPLET)"
+		--binarysource="$(VCPKG_BINARY_SOURCES)" \
+		--triplet="$(VCPKG_TRIPLET)" \
+		--vcpkg-root="$(VCPKG_ROOT)"
 
 check-vcpkg: vcpkg-bootstrap  vcpkg-install-deps
 	@echo "Checking vcpkg configuration..."
@@ -163,6 +210,7 @@ configure-debug: check-vcpkg
 		-DCMAKE_BUILD_TYPE=Debug \
 		-DCMAKE_TOOLCHAIN_FILE=$(VCPKG_TOOLCHAIN) \
 		-DVCPKG_INSTALLED_DIR=$(VCPKG_INSTALLED_DIR) \
+		$(VCPKG_OVERLAY_TRIPS) \
 		-DVCPKG_TARGET_TRIPLET=$(VCPKG_TRIPLET) \
 		-DBUILD_TESTS=ON \
 		-DUSE_CCACHE=ON \
@@ -180,6 +228,7 @@ configure-release: check-vcpkg
 		-DCMAKE_BUILD_TYPE=Release \
 		-DCMAKE_TOOLCHAIN_FILE=$(VCPKG_TOOLCHAIN) \
 		-DVCPKG_INSTALLED_DIR=$(VCPKG_INSTALLED_DIR) \
+		$(VCPKG_OVERLAY_TRIPS) \
 		-DVCPKG_TARGET_TRIPLET=$(VCPKG_TRIPLET) \
 		-DBUILD_TESTS=ON \
 		-DUSE_CCACHE=ON \
@@ -194,13 +243,13 @@ configure: configure-debug configure-release
 
 build-debug: configure-debug
 	@echo "Building debug..."
-	ninja -C $(BUILD_DIR_DEBUG) -j$(NPROC)
+	cmake --build $(BUILD_DIR_DEBUG) -- -j$(NPROC)
 	@echo "✓ Debug build complete"
 	@$(MAKE) clangd-helpers
 
 build-release: configure-release
 	@echo "Building release..."
-	ninja -C $(BUILD_DIR_RELEASE) -j$(NPROC)
+	cmake --build $(BUILD_DIR_RELEASE) -- -j$(NPROC)
 	@echo "✓ Release build complete"
 
 # Docker test targets (default)
@@ -284,50 +333,13 @@ test-verbose: docker-up build-release
 		cd $(BUILD_DIR_RELEASE) && ctest --verbose -C Release || true
 	@$(MAKE) docker-down
 
-# Default test targets - use Docker if available
-ifeq ($(USE_LOCAL_DB),1)
-test: test-local
-test-debug: test-local-debug
-else ifeq ($(HAS_DOCKER),yes)
 test: test-with-docker
 test-debug: test-debug-docker
-else
-test: test-local
-	@echo ""
-	@echo "Note: Install Docker to automatically manage test database"
-test-debug: test-local-debug
-	@echo ""
-	@echo "Note: Install Docker to automatically manage test database"
-endif
 
-install: build-release
-	@echo "Installing falcon-database to $(INSTALL_PREFIX)..."
-	$(SUDO) cmake --install $(BUILD_DIR_RELEASE) --prefix $(INSTALL_PREFIX)
-	$(SUDO) cp -v $(BUILD_DIR_RELEASE)/falcon-db-cli $(INSTALL_LIBDIR)/falcon-db-cli
-	@echo "Copying vcpkg headers and libraries..."
-	$(SUDO) cp -r $(VCPKG_INSTALLED_DIR)/$(VCPKG_TRIPLET)/include/* $(INSTALL_INCLUDEDIR)/
-	$(SUDO) cp -r $(VCPKG_INSTALLED_DIR)/$(VCPKG_TRIPLET)/lib/* $(INSTALL_LIBDIR)/
-	$(SUDO) cp -r $(VCPKG_INSTALLED_DIR)/$(VCPKG_TRIPLET)/bin/* $(INSTALL_LIBDIR)/ || true
-	@echo "✓ Installation complete"
-
-uninstall:
-	@echo "Uninstalling falcon-database from $(INSTALL_PREFIX)..."
-	$(SUDO) rm -r $(INSTALL_LIBDIR)/libfalcon-database* $(INSTALL_INCLUDEDIR)/falcon-database* $(INSTALL_PREFIX)/lib/cmake/falcon-database $(INSTALL_LIBDIR)/falcon-db-cli || true
-	@echo "✓ Uninstall complete"
-
-clean: uninstall
+clean: 
 	@echo "Cleaning build artifacts..."
 	rm -rf $(BUILD_DIR_DEBUG) $(BUILD_DIR_RELEASE) build/ compile_commands.json vcpkg_installed/
 	@echo "✓ Clean complete"
-
-# Quick rebuild without reconfigure
-rebuild-debug:
-	@echo "Rebuilding debug..."
-	cmake --build $(BUILD_DIR_DEBUG) --config Debug -j$(NPROC)
-
-rebuild-release:
-	@echo "Rebuilding release..."
-	cmake --build $(BUILD_DIR_RELEASE) --config Release -j$(NPROC)
 
 .PHONY: clangd-helpers
 clangd-helpers:
