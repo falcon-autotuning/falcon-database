@@ -1,0 +1,19 @@
+name: Main Pipeline
+
+on:
+  push:
+    branches: [main, dev]
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  linux-ci:
+    name: Linux CI
+    uses: ./.github/workflows/linux.yml
+    secrets: inherit
+
+  windows-ci:
+    name: Windows CI
+    uses: ./.github/workflows/windows.yml
+    secrets: inherit

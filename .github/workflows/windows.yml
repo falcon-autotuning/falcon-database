@@ -1,0 +1,31 @@
+name: Windows CI
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - "v*"
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-and-release:
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          choco install cmake make docker
+
+      - name: Run tests (with Docker)
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+          FEED_URL: ${{ secrets.NUGET_FEED_URL }}
+          FEED_NAME: ${{ secrets.NUGET_FEED_NAME }}
+          USERNAME: $ {{ secrets.NUGET_USERNAME }}
+        run: make test
