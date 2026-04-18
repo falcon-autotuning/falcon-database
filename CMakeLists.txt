@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 
 project(
   falcon-database
-  VERSION 1.0.4
+  VERSION 1.0.5
   LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -128,14 +128,15 @@ include(CMakePackageConfigHelpers)
 
 install(TARGETS falcon-database
   EXPORT falcon-database-targets
-  LIBRARY DESTINATION lib
-  ARCHIVE DESTINATION lib
-  INCLUDES DESTINATION include
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}  
+  INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
 # Install CLI separately WITHOUT exporting it
 install(TARGETS falcon-db-cli
-  RUNTIME DESTINATION bin
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
 install(DIRECTORY include/falcon-database
@@ -145,7 +146,6 @@ install(DIRECTORY include/falcon-database
     PATTERN "*.h"
 )
 
-# Install the generated header (optional, if you want it available to users)
 install(FILES
   "${CMAKE_CURRENT_BINARY_DIR}/generated/SnapshotSchemaData.hpp"
   DESTINATION include/falcon-database/internal
