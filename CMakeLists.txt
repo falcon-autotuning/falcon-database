@@ -1,10 +1,8 @@
 cmake_minimum_required(VERSION 3.20)
 
-file(READ "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg.json" VCPKG_JSON)
-string(JSON PROJECT_VERSION GET "${VCPKG_JSON}" "version")
 project(
   falcon-database
-  VERSION ${PROJECT_VERSION}
+  VERSION 1.0.4
   LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
