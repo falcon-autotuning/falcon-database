@@ -1,10 +1,14 @@
 {
   "name": "falcon-database",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "PostGreSQL binding for falcon DSL interaction to store global variables",
   "homepage": "https://github.com/falcon-autotuning/falcon-database",
   "license": "MPL-2.0",
   "dependencies": [
+    {
+      "name": "libpq",
+      "version>=": "16.0"
+    },
     {
       "name": "libpqxx",
       "version>=": "7.10.5"
