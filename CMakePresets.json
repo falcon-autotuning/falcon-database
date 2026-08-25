@@ -7,9 +7,6 @@
       "hidden": true,
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/${presetName}",
-      "environment": {
-        "MAKELEVEL": "0"
-      },
       "cacheVariables": {
         "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
         "VCPKG_ROOT": "${sourceDir}/vcpkg",
@@ -19,8 +16,7 @@
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
         "USE_CCACHE": "ON",
         "ENABLE_PCH": "ON",
-        "BUILD_TESTS": "ON",
-        "FALCON_CORE_BUILD_C_API": "ON"
+        "BUILD_TESTS": "OFF"
       }
     },
     {
@@ -34,7 +30,13 @@
         "VCPKG_TARGET_TRIPLET": "x64-linux-dynamic",
         "CMAKE_PREFIX_PATH": "${sourceDir}/vcpkg_installed/x64-linux-dynamic/share;${sourceDir}/vcpkg_installed",
         "CMAKE_EXE_LINKER_FLAGS": "-fuse-ld=lld",
-        "CMAKE_SHARED_LINKER_FLAGS": "-fuse-ld=lld"
+        "CMAKE_SHARED_LINKER_FLAGS": "-fuse-ld=lld",
+        "ENABLE_PCH": "ON",
+        "BUILD_TESTS": "ON"
+      },
+      "environment": {
+        "CC": "clang",
+        "CXX": "clang++"
       }
     },
     {
@@ -49,6 +51,10 @@
         "CMAKE_PREFIX_PATH": "${sourceDir}/vcpkg_installed/x64-linux-dynamic/share;${sourceDir}/vcpkg_installed",
         "CMAKE_EXE_LINKER_FLAGS": "-fuse-ld=lld",
         "CMAKE_SHARED_LINKER_FLAGS": "-fuse-ld=lld"
+      },
+      "environment": {
+        "CC": "clang",
+        "CXX": "clang++"
       }
     },
     {
@@ -60,7 +66,12 @@
         "CMAKE_C_COMPILER": "gcc",
         "CMAKE_CXX_COMPILER": "g++",
         "VCPKG_TARGET_TRIPLET": "x64-linux-dynamic",
-        "CMAKE_PREFIX_PATH": "${sourceDir}/vcpkg_installed/x64-linux-dynamic/share;${sourceDir}/vcpkg_installed"
+        "CMAKE_PREFIX_PATH": "${sourceDir}/vcpkg_installed/x64-linux-dynamic/share;${sourceDir}/vcpkg_installed",
+        "BUILD_TESTS": "ON"
+      },
+      "environment": {
+        "CC": "gcc",
+        "CXX": "gcc++"
       }
     },
     {
@@ -73,6 +84,10 @@
         "CMAKE_CXX_COMPILER": "g++",
         "VCPKG_TARGET_TRIPLET": "x64-linux-dynamic",
         "CMAKE_PREFIX_PATH": "${sourceDir}/vcpkg_installed/x64-linux-dynamic/share;${sourceDir}/vcpkg_installed"
+      },
+      "environment": {
+        "CC": "gcc",
+        "CXX": "gcc++"
       }
     },
     {
@@ -84,7 +99,8 @@
         "CMAKE_C_COMPILER": "clang-cl",
         "CMAKE_CXX_COMPILER": "clang-cl",
         "VCPKG_TARGET_TRIPLET": "x64-win-llvm",
-        "CMAKE_PREFIX_PATH": "${sourceDir}/vcpkg_installed/x64-win-llvm/share;${sourceDir}/vcpkg_installed"
+        "CMAKE_PREFIX_PATH": "${sourceDir}/vcpkg_installed/x64-win-llvm/share;${sourceDir}/vcpkg_installed",
+        "BUILD_TESTS": "ON"
       }
     },
     {
@@ -97,6 +113,19 @@
         "CMAKE_CXX_COMPILER": "clang-cl",
         "VCPKG_TARGET_TRIPLET": "x64-win-llvm",
         "CMAKE_PREFIX_PATH": "${sourceDir}/vcpkg_installed/x64-win-llvm/share;${sourceDir}/vcpkg_installed"
+      }
+    },
+    {
+      "name": "linux-clang-asan",
+      "description": "Linux Debug build with ASAN + UBSAN",
+      "inherits": "default",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "VCPKG_TARGET_TRIPLET": "x64-linux-dynamic",
+        "CMAKE_PREFIX_PATH": "${sourceDir}/vcpkg_installed/x64-linux-dynamic/share;${sourceDir}/vcpkg_installed",
+        "BUILD_TESTS": "ON"
       }
     }
   ],
@@ -127,6 +156,11 @@
       "jobs": 0
     },
     {
+      "name": "linux-clang-asan",
+      "configurePreset": "linux-clang-asan",
+      "jobs": 0
+    },
+    {
       "name": "windows-clang-cl-release",
       "configurePreset": "windows-clang-cl-release",
       "jobs": 0
@@ -152,6 +186,10 @@
     {
       "name": "windows-clang-cl-debug",
       "configurePreset": "windows-clang-cl-debug"
+    },
+    {
+      "name": "linux-clang-asan",
+      "configurePreset": "linux-clang-asan"
     },
     {
       "name": "windows-clang-cl-release",
